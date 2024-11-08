@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   TextField,
   Table,
@@ -16,19 +16,12 @@ import {
   DialogContentText,
   DialogTitle,
 } from "@mui/material";
-import { algoliaSearchClient, index } from "../services/algolia";
-import {
-  Delete as DeleteIcon,
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-} from "@mui/icons-material"; // Íconos
+import { index } from "../services/algolia";
+import { Delete as DeleteIcon } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
 const HomePage = () => {
   const [restaurants, setRestaurants] = useState([]);
-  const [newRestaurant, setNewRestaurant] = useState({
-    name: "",
-    foodType: "",
-  });
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -37,7 +30,10 @@ const HomePage = () => {
   const [modalMessage, setModalMessage] = useState("");
   const [deleteRestaurantID, setDeleteRestaurantID] = useState(null);
 
-  const fetchRestaurants = async () => {
+  const navigate = useNavigate();
+
+  // Fetch restaurants from Algolia based on search term and pagination
+  const fetchRestaurants = useCallback(async () => {
     try {
       const { hits, nbHits } = await index.search(searchTerm, {
         hitsPerPage: rowsPerPage,
@@ -47,53 +43,26 @@ const HomePage = () => {
       setTotalHits(nbHits);
     } catch (error) {
       console.error("Error fetching restaurants:", error);
-    }
-  };
-
-  const addRestaurant = async () => {
-    if (newRestaurant.name && newRestaurant.foodType) {
-      try {
-        await index.saveObjects([
-          {
-            objectID: new Date().toISOString(),
-            name: newRestaurant.name,
-            food_type: newRestaurant.foodType,
-          },
-        ]);
-        setModalMessage("Restaurant added successfully!");
-
-        // Limpiar campos de entrada
-        setNewRestaurant({ name: "", foodType: "" });
-
-        fetchRestaurants();
-      } catch (error) {
-        setModalMessage("Error adding restaurant. Please try again.");
-        console.error("Error adding restaurant:", error);
-      }
-      setOpenModal(true);
-    } else {
-      setModalMessage("Please fill in all fields.");
+      setModalMessage("Error fetching data.");
       setOpenModal(true);
     }
-  };
+  }, [searchTerm, rowsPerPage, page]);
 
+  // Confirm deletion of a restaurant
   const confirmDeleteRestaurant = (id) => {
     setDeleteRestaurantID(id);
     setModalMessage("Are you sure you want to delete this restaurant?");
     setOpenModal(true);
   };
 
+  // Delete a restaurant
   const deleteRestaurant = async () => {
     try {
       if (deleteRestaurantID) {
         await index.deleteObject(deleteRestaurantID);
         setModalMessage("Restaurant deleted successfully!");
-
-        // Elimina el restaurante del estado local
-        setRestaurants((prevRestaurants) =>
-          prevRestaurants.filter(
-            (restaurant) => restaurant.objectID !== deleteRestaurantID
-          )
+        setRestaurants((prev) =>
+          prev.filter((r) => r.objectID !== deleteRestaurantID)
         );
       }
     } catch (error) {
@@ -109,7 +78,7 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchRestaurants();
-  }, [page, searchTerm, rowsPerPage]);
+  }, [fetchRestaurants]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -131,6 +100,14 @@ const HomePage = () => {
           Restaurant Management
         </h1>
 
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => navigate("/add-restaurant")}
+        >
+          Add New Restaurant
+        </Button>
+
         <TextField
           label="Search Restaurants"
           variant="outlined"
@@ -140,64 +117,63 @@ const HomePage = () => {
           className="mb-6"
         />
 
-        <div className="bg-gray-100 p-6 rounded-lg shadow-md flex flex-col sm:flex-row gap-6">
-          <input
-            type="text"
-            placeholder="Restaurant Name"
-            value={newRestaurant.name}
-            onChange={(e) =>
-              setNewRestaurant({ ...newRestaurant, name: e.target.value })
-            }
-            className="flex-1 p-4 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            placeholder="Cuisine Type"
-            value={newRestaurant.foodType}
-            onChange={(e) =>
-              setNewRestaurant({
-                ...newRestaurant,
-                foodType: e.target.value,
-              })
-            }
-            className="flex-1 p-4 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={addRestaurant}
-            className="bg-blue-600 text-white py-4 px-6 rounded-lg hover:bg-blue-700 transition duration-300"
-          >
-            Add Restaurant
-          </button>
-        </div>
-
         <TableContainer component={Paper} className="mb-8">
           <Table sx={{ minWidth: 650 }} aria-label="restaurant table">
-            <TableHead>
+            <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>Cuisine Type</TableCell>
+                <TableCell>City</TableCell>
+                <TableCell>Address</TableCell>
+                <TableCell>Phone</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {restaurants.map((restaurant) => (
-                <TableRow key={restaurant.objectID}>
-                  <TableCell>{restaurant.name}</TableCell>
-                  <TableCell>{restaurant.food_type}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      onClick={() =>
-                        confirmDeleteRestaurant(restaurant.objectID)
-                      }
-                      startIcon={<DeleteIcon />}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {restaurants
+                .filter((restaurant) => {
+                  return (
+                    restaurant.name
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase()) ||
+                    restaurant.food_type
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase()) ||
+                    (restaurant.city &&
+                      restaurant.city
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase())) ||
+                    (restaurant.address &&
+                      restaurant.address
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase())) ||
+                    (restaurant.phone_number &&
+                      restaurant.phone_number
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase()))
+                  );
+                })
+                .map((restaurant) => (
+                  <TableRow key={restaurant.objectID}>
+                    <TableCell>{restaurant.name}</TableCell>
+                    <TableCell>{restaurant.food_type}</TableCell>
+                    <TableCell>{restaurant.city}</TableCell>
+                    <TableCell>{restaurant.address}</TableCell>
+                    <TableCell>{restaurant.phone_number}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        onClick={() =>
+                          confirmDeleteRestaurant(restaurant.objectID)
+                        }
+                        startIcon={<DeleteIcon />}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -213,67 +189,25 @@ const HomePage = () => {
         />
       </div>
 
-      {/* Modal for confirmation or error messages */}
-      <Dialog
-        open={openModal}
-        onClose={handleCloseModal}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        sx={{
-          "& .MuiDialog-paper": {
-            borderRadius: "12px",
-            padding: "20px",
-            boxShadow: "0px 4px 12px rgba(0,0,0,0.2)",
-          },
-        }}
-      >
-        <DialogTitle
-          id="alert-dialog-title"
-          sx={{ fontWeight: "bold", fontSize: "20px" }}
-        >
-          {"Action Status"}
-        </DialogTitle>
+      <Dialog open={openModal} onClose={handleCloseModal}>
+        <DialogTitle>{"Action Status"}</DialogTitle>
         <DialogContent>
-          <DialogContentText
-            id="alert-dialog-description"
-            sx={{ fontSize: "16px" }}
-          >
-            {modalMessage}
-            {modalMessage.includes("successfully") && (
-              <CheckCircleIcon color="success" />
-            )}
-            {modalMessage.includes("Error") && <ErrorIcon color="error" />}
-          </DialogContentText>
+          <DialogContentText>{modalMessage}</DialogContentText>
         </DialogContent>
         <DialogActions>
+          <Button onClick={handleCloseModal} color="primary">
+            Close
+          </Button>
           {modalMessage ===
-          "Are you sure you want to delete this restaurant?" ? (
+            "Are you sure you want to delete this restaurant?" && (
             <>
-              <Button
-                onClick={deleteRestaurant}
-                color="error"
-                variant="contained"
-              >
-                Yes, Delete
+              <Button onClick={deleteRestaurant} color="secondary">
+                Yes
               </Button>
-              <Button
-                onClick={handleCloseModal}
-                color="primary"
-                autoFocus
-                variant="outlined"
-              >
-                Cancel
+              <Button onClick={handleCloseModal} color="primary">
+                No
               </Button>
             </>
-          ) : (
-            <Button
-              onClick={handleCloseModal}
-              color="primary"
-              autoFocus
-              variant="contained"
-            >
-              OK
-            </Button>
           )}
         </DialogActions>
       </Dialog>
