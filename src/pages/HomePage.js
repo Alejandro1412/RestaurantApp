@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 const HomePage = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [foodTypeFilter, setFoodTypeFilter] = useState(""); // Nuevo estado para el filtro por food_type
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [totalHits, setTotalHits] = useState(0);
@@ -32,7 +33,7 @@ const HomePage = () => {
 
   const navigate = useNavigate();
 
-  // Fetch restaurants from Algolia based on search term and pagination
+  // Fetch restaurants from Algolia based on search term, foodTypeFilter and pagination
   const fetchRestaurants = useCallback(async () => {
     try {
       const { hits, nbHits } = await index.search(searchTerm, {
@@ -76,6 +77,10 @@ const HomePage = () => {
     setSearchTerm(event.target.value);
   };
 
+  const handleFoodTypeChange = (event) => {
+    setFoodTypeFilter(event.target.value); // Actualizar filtro por tipo de comida
+  };
+
   useEffect(() => {
     fetchRestaurants();
   }, [fetchRestaurants]);
@@ -117,6 +122,15 @@ const HomePage = () => {
           className="mb-6"
         />
 
+        <TextField
+          label="Filter by Food Type"
+          variant="outlined"
+          fullWidth
+          value={foodTypeFilter}
+          onChange={handleFoodTypeChange}
+          className="mb-6"
+        />
+
         <TableContainer component={Paper} className="mb-8">
           <Table sx={{ minWidth: 650 }} aria-label="restaurant table">
             <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
@@ -133,24 +147,29 @@ const HomePage = () => {
               {restaurants
                 .filter((restaurant) => {
                   return (
-                    restaurant.name
+                    (restaurant.name
                       .toLowerCase()
                       .includes(searchTerm.toLowerCase()) ||
-                    restaurant.food_type
-                      .toLowerCase()
-                      .includes(searchTerm.toLowerCase()) ||
-                    (restaurant.city &&
-                      restaurant.city
+                      restaurant.food_type
                         .toLowerCase()
-                        .includes(searchTerm.toLowerCase())) ||
-                    (restaurant.address &&
-                      restaurant.address
-                        .toLowerCase()
-                        .includes(searchTerm.toLowerCase())) ||
-                    (restaurant.phone_number &&
-                      restaurant.phone_number
-                        .toLowerCase()
-                        .includes(searchTerm.toLowerCase()))
+                        .includes(searchTerm.toLowerCase()) ||
+                      (restaurant.city &&
+                        restaurant.city
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())) ||
+                      (restaurant.address &&
+                        restaurant.address
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())) ||
+                      (restaurant.phone_number &&
+                        restaurant.phone_number
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase()))) &&
+                    (foodTypeFilter
+                      ? restaurant.food_type
+                          .toLowerCase()
+                          .includes(foodTypeFilter.toLowerCase())
+                      : true)
                   );
                 })
                 .map((restaurant) => (
