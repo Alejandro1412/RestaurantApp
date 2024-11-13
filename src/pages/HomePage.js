@@ -1,29 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Button,
-  TablePagination,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
 } from "@mui/material";
-import { index } from "../services/algolia";
+import { DataGrid } from "@mui/x-data-grid";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { index } from "../services/algolia";
 
 const HomePage = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [foodTypeFilter, setFoodTypeFilter] = useState(""); // Nuevo estado para el filtro por food_type
+  const [foodTypeFilter, setFoodTypeFilter] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [totalHits, setTotalHits] = useState(0);
@@ -33,7 +26,7 @@ const HomePage = () => {
 
   const navigate = useNavigate();
 
-  // Fetch restaurants from Algolia based on search term, foodTypeFilter and pagination
+  // Fetch restaurants based on filters and pagination
   const fetchRestaurants = useCallback(async () => {
     try {
       const { hits, nbHits } = await index.search(searchTerm, {
@@ -49,7 +42,7 @@ const HomePage = () => {
     }
   }, [searchTerm, rowsPerPage, page]);
 
-  // Confirm deletion of a restaurant
+  // Confirm deletion
   const confirmDeleteRestaurant = (id) => {
     setDeleteRestaurantID(id);
     setModalMessage("Are you sure you want to delete this restaurant?");
@@ -78,7 +71,7 @@ const HomePage = () => {
   };
 
   const handleFoodTypeChange = (event) => {
-    setFoodTypeFilter(event.target.value); // Actualizar filtro por tipo de comida
+    setFoodTypeFilter(event.target.value);
   };
 
   useEffect(() => {
@@ -97,6 +90,45 @@ const HomePage = () => {
   const handleCloseModal = () => {
     setOpenModal(false);
   };
+
+  const filteredRestaurants = restaurants.filter((restaurant) => {
+    const matchesSearchTerm = [
+      restaurant.name,
+      restaurant.food_type,
+      restaurant.city,
+      restaurant.address,
+      restaurant.phone_number,
+    ].some((field) => field?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesFoodType = foodTypeFilter
+      ? restaurant.food_type
+          ?.toLowerCase()
+          .includes(foodTypeFilter.toLowerCase())
+      : true;
+    return matchesSearchTerm && matchesFoodType;
+  });
+
+  const columns = [
+    { field: "name", headerName: "Restaurant", width: 180 },
+    { field: "food_type", headerName: "Cuisine Type", width: 180 },
+    { field: "city", headerName: "City", width: 180 },
+    { field: "address", headerName: "Address", width: 250 },
+    { field: "phone_number", headerName: "Phone", width: 180 },
+    {
+      field: "actions",
+      headerName: "Actions",
+      width: 150,
+      renderCell: (params) => (
+        <Button
+          variant="contained"
+          color="error"
+          onClick={() => confirmDeleteRestaurant(params.row.objectID)}
+          startIcon={<DeleteIcon />}
+        >
+          Delete
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <div className="bg-gray-50 min-h-screen flex flex-col justify-center items-center py-12 px-6 sm:px-8 lg:px-16">
@@ -131,81 +163,21 @@ const HomePage = () => {
           className="mb-6"
         />
 
-        <TableContainer component={Paper} className="mb-8">
-          <Table sx={{ minWidth: 650 }} aria-label="restaurant table">
-            <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Cuisine Type</TableCell>
-                <TableCell>City</TableCell>
-                <TableCell>Address</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {restaurants
-                .filter((restaurant) => {
-                  return (
-                    (restaurant.name
-                      .toLowerCase()
-                      .includes(searchTerm.toLowerCase()) ||
-                      restaurant.food_type
-                        .toLowerCase()
-                        .includes(searchTerm.toLowerCase()) ||
-                      (restaurant.city &&
-                        restaurant.city
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase())) ||
-                      (restaurant.address &&
-                        restaurant.address
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase())) ||
-                      (restaurant.phone_number &&
-                        restaurant.phone_number
-                          .toLowerCase()
-                          .includes(searchTerm.toLowerCase()))) &&
-                    (foodTypeFilter
-                      ? restaurant.food_type
-                          .toLowerCase()
-                          .includes(foodTypeFilter.toLowerCase())
-                      : true)
-                  );
-                })
-                .map((restaurant) => (
-                  <TableRow key={restaurant.objectID}>
-                    <TableCell>{restaurant.name}</TableCell>
-                    <TableCell>{restaurant.food_type}</TableCell>
-                    <TableCell>{restaurant.city}</TableCell>
-                    <TableCell>{restaurant.address}</TableCell>
-                    <TableCell>{restaurant.phone_number}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="error"
-                        onClick={() =>
-                          confirmDeleteRestaurant(restaurant.objectID)
-                        }
-                        startIcon={<DeleteIcon />}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={totalHits}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
+        <div style={{ height: 400, width: "100%" }}>
+          <DataGrid
+            rows={filteredRestaurants}
+            columns={columns}
+            pageSize={rowsPerPage}
+            rowsPerPageOptions={[5, 10, 25]}
+            pagination
+            page={page}
+            onPageChange={handleChangePage}
+            onPageSizeChange={handleChangeRowsPerPage}
+            rowCount={totalHits}
+            paginationMode="server"
+            getRowId={(row) => row.objectID} // Use objectID as row ID
+          />
+        </div>
       </div>
 
       <Dialog open={openModal} onClose={handleCloseModal}>
