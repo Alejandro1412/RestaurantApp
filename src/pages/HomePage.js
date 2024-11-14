@@ -1,17 +1,28 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  TablePagination,
   Button,
   Dialog,
-  DialogActions,
+  DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogTitle,
+  DialogActions,
+  TextField,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
-import { Delete as DeleteIcon } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
-import { index } from "../services/algolia";
+import DeleteIcon from "@mui/icons-material/Delete";
+import algoliasearch from "algoliasearch";
+
+// Initialize Algolia client and index
+const client = algoliasearch("VH6I691OVQ", "41988e6be0ec82d3c38be81925d17da4");
+const index = client.initIndex("restaurants");
 
 const HomePage = () => {
   const [restaurants, setRestaurants] = useState([]);
@@ -26,7 +37,6 @@ const HomePage = () => {
 
   const navigate = useNavigate();
 
-  // Fetch restaurants based on filters and pagination
   const fetchRestaurants = useCallback(async () => {
     try {
       const { hits, nbHits } = await index.search(searchTerm, {
@@ -42,14 +52,12 @@ const HomePage = () => {
     }
   }, [searchTerm, rowsPerPage, page]);
 
-  // Confirm deletion
   const confirmDeleteRestaurant = (id) => {
     setDeleteRestaurantID(id);
     setModalMessage("Are you sure you want to delete this restaurant?");
     setOpenModal(true);
   };
 
-  // Delete a restaurant
   const deleteRestaurant = async () => {
     try {
       if (deleteRestaurantID) {
@@ -91,48 +99,9 @@ const HomePage = () => {
     setOpenModal(false);
   };
 
-  const filteredRestaurants = restaurants.filter((restaurant) => {
-    const matchesSearchTerm = [
-      restaurant.name,
-      restaurant.food_type,
-      restaurant.city,
-      restaurant.address,
-      restaurant.phone_number,
-    ].some((field) => field?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesFoodType = foodTypeFilter
-      ? restaurant.food_type
-          ?.toLowerCase()
-          .includes(foodTypeFilter.toLowerCase())
-      : true;
-    return matchesSearchTerm && matchesFoodType;
-  });
-
-  const columns = [
-    { field: "name", headerName: "Restaurant", width: 180 },
-    { field: "food_type", headerName: "Cuisine Type", width: 180 },
-    { field: "city", headerName: "City", width: 180 },
-    { field: "address", headerName: "Address", width: 250 },
-    { field: "phone_number", headerName: "Phone", width: 180 },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 150,
-      renderCell: (params) => (
-        <Button
-          variant="contained"
-          color="error"
-          onClick={() => confirmDeleteRestaurant(params.row.objectID)}
-          startIcon={<DeleteIcon />}
-        >
-          Delete
-        </Button>
-      ),
-    },
-  ];
-
   return (
     <div className="bg-gray-50 min-h-screen flex flex-col justify-center items-center py-12 px-6 sm:px-8 lg:px-16">
-      <div className="max-w-7xl w-full bg-white p-8 rounded-xl shadow-xl space-y-8">
+      <main className="max-w-7xl w-full bg-white p-8 rounded-xl shadow-xl space-y-8">
         <h1 className="text-4xl font-bold text-center text-gray-800">
           Restaurant Management
         </h1>
@@ -163,22 +132,89 @@ const HomePage = () => {
           className="mb-6"
         />
 
-        <div style={{ height: 400, width: "100%" }}>
-          <DataGrid
-            rows={filteredRestaurants}
-            columns={columns}
-            pageSize={rowsPerPage}
-            rowsPerPageOptions={[5, 10, 25]}
-            pagination
-            page={page}
-            onPageChange={handleChangePage}
-            onPageSizeChange={handleChangeRowsPerPage}
-            rowCount={totalHits}
-            paginationMode="server"
-            getRowId={(row) => row.objectID} // Use objectID as row ID
-          />
-        </div>
-      </div>
+        <TableContainer component={Paper} className="mb-8">
+          <Table sx={{ minWidth: 650 }} aria-label="restaurant table">
+            <TableHead sx={{ backgroundColor: "#e2dcdc" }}>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Cuisine Type</TableCell>
+                <TableCell>City</TableCell>
+                <TableCell>Address</TableCell>
+                <TableCell>Phone</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {restaurants
+                .filter((restaurant) => {
+                  return (
+                    (restaurant.name
+                      .toLowerCase()
+                      .includes(searchTerm.toLowerCase()) ||
+                      restaurant.food_type
+                        .toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                      (restaurant.city &&
+                        restaurant.city
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())) ||
+                      (restaurant.address &&
+                        restaurant.address
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())) ||
+                      (restaurant.phone_number &&
+                        restaurant.phone_number
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase()))) &&
+                    (foodTypeFilter
+                      ? restaurant.food_type
+                          .toLowerCase()
+                          .includes(foodTypeFilter.toLowerCase())
+                      : true)
+                  );
+                })
+                .map((restaurant) => (
+                  <TableRow
+                    key={restaurant.objectID}
+                    sx={{
+                      "&:hover": {
+                        backgroundColor: "#c6c5c5", // Gris tenue
+                      },
+                    }}
+                  >
+                    <TableCell>{restaurant.name}</TableCell>
+                    <TableCell>{restaurant.food_type}</TableCell>
+                    <TableCell>{restaurant.city}</TableCell>
+                    <TableCell>{restaurant.address}</TableCell>
+                    <TableCell>{restaurant.phone_number}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        onClick={() =>
+                          confirmDeleteRestaurant(restaurant.objectID)
+                        }
+                        startIcon={<DeleteIcon />}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25]}
+          component="div"
+          count={totalHits}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+        />
+      </main>
 
       <Dialog open={openModal} onClose={handleCloseModal}>
         <DialogTitle>{"Action Status"}</DialogTitle>
